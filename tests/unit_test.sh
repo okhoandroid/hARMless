@@ -3,6 +3,18 @@
 # Simple unit test for hARMless
 # Tests packing and execution of /bin/ls
 
+create_packed_binary(){ 
+    # The binary self delete every run, thus it needs to recreated for every test
+    echo "Generating self-contained executable..."
+    echo
+    ../build/stubgen ../build/loader test_ls.packed test_ls_packed
+    echo 
+    if [[ ! -f test_ls_packed ]]; then
+        echo "ERROR: Packed executable not created"
+        exit 1
+    fi
+}
+
 set -e
 
 echo "=== hARMless Test ==="
@@ -50,13 +62,7 @@ echo "[x] Created packed file: $(ls -lh test_ls.packed)"
 echo
 
 # Test stub generation
-echo "Generating self-contained executable..."
-../build/stubgen ../build/loader test_ls.packed test_ls_packed
-
-if [[ ! -f test_ls_packed ]]; then
-    echo "ERROR: Packed executable not created"
-    exit 1
-fi
+create_packed_binary
 
 echo
 echo "[x] Created packed executable: $(ls -lh test_ls_packed)"
@@ -76,6 +82,8 @@ else
     exit 1
 fi
 
+create_packed_binary
+
 # Test that output is similar to original
 echo "Comparing output with original..."
 ORIGINAL_OUTPUT=$(timeout 5s /bin/ls --version 2>/dev/null | head -1 || echo "ls version output")
@@ -91,6 +99,8 @@ else
     echo "  Packed:   $PACKED_OUTPUT"
 fi
 
+create_packed_binary
+
 # Test basic functionality
 echo "Testing basic ls functionality..."
 ORIGINAL_LS=$(timeout 5s /bin/ls / | wc -l)
@@ -104,9 +114,12 @@ else
     echo "WARNING: Different output count ($ORIGINAL_LS vs $PACKED_LS)"
 fi
 
+# Uncomment the below to keep the packed binary
+# create_packed_binary
+
 # Cleanup
-# echo "Cleaning up..."
-# rm -f test_ls.packed test_ls_packed
+echo "Cleaning up..."
+rm -f test_ls.packed
 
 echo
 echo "[x] Test completed successfully."
