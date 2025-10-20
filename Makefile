@@ -76,6 +76,15 @@ clean:
 	rm -f *.packed
 	rm -f test_* bench_*
 
+test:
+	@echo "Running tests..."
+	@if [ -x tests/unit_test.sh ]; then \
+		cd tests && ./unit_test.sh; \
+	else \
+		echo "No tests found: tests/unit_test.sh"; \
+		exit 1; \
+	fi
+
 # Install dependencies
 install-deps:
 	@echo "Installing ARM64 cross-compilation and OpenSSL dependencies..."
