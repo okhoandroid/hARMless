@@ -10,7 +10,7 @@ endif
 
 # Compiler flags
 CFLAGS := -Wall -Wextra -O2 -std=c99
-TARGET_CFLAGS := -Wall -Wextra -O2 -std=c99 -static
+TARGET_CFLAGS := -Wall -Wextra -O2 -std=c99 -static -DCOPY_WITH_MMAP
 LDFLAGS := -static
 
 # OpenSSL flags - prefer shared libraries to avoid static linking warnings
@@ -54,7 +54,7 @@ $(PACKER_BIN): $(PACKER_SOURCES)
 
 # Build loader
 $(LOADER_BIN): $(LOADER_SOURCES)
-	$(TARGET_CC) $(TARGET_CFLAGS) $(STEALTH_FLAGS) $(OPENSSL_CFLAGS) $(INCLUDES) -o $@ $^ $(OPENSSL_LDFLAGS) 2>/dev/null || $(TARGET_CC) $(TARGET_CFLAGS) $(STEALTH_FLAGS) $(OPENSSL_CFLAGS) $(INCLUDES) -o $@ $^ $(OPENSSL_LDFLAGS)
+	$(TARGET_CC) $(TARGET_CFLAGS) $(STEALTH_FLAGS) $(OPENSSL_CFLAGS) $(INCLUDES) -o $@ $^ $(OPENSSL_LDFLAGS) 2>/dev/null || $(TARGET_CC) $(TARGET_CFLAGS) $(STEALTH_FLAGS) $(OPENSSL_CFLAGS) $(INCLUDES) -o $@ $^ $(OPENSSL_LDFLAGS) -lzstd -lz
 
 # Build stub generator 
 $(STUBGEN_BIN): $(STUBGEN_SOURCES)

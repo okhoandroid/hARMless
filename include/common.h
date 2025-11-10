@@ -46,6 +46,7 @@ typedef struct {
 #define __NR_getpid 172
 #define __NR_getppid 173
 #define __NR_prctl 167
+#define __NR_msync 227
 
 
 static inline long syscall1(long number, long arg1) {
