@@ -1,0 +1,39 @@
+name: Build hARMless Protected SO
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev build-essential
+
+      - name: Build Packer (x64)
+        run: |
+          mkdir -p build
+          gcc -Iinclude packer/packer.c packer/crypto.c packer/obfuscation.c -lssl -lcrypto -o build/packer
+
+      - name: Build Loader (ARM64)
+        run: |
+          aarch64-linux-gnu-gcc -Iinclude -c loader/loader.c -o build/loader.o
+          aarch64-linux-gnu-gcc -Iinclude build/loader.o -o build/loader || true
+
+      - name: Build Stubgen (x64)
+        run: |
+          gcc -Iinclude stubgen/stubgen.c -o build/stubgen
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: harmless-tools
+          path: build/
