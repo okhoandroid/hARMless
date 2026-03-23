@@ -18,6 +18,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev build-essential
 
+      - name: Fix ARM64 inline asm for x86_64
+        run: |
+          sed -i 's/__asm__.*//g' include/common.h
+          sed -i 's/register.*//g' include/common.h
+
       - name: Build Packer (x64)
         run: |
           mkdir -p build
