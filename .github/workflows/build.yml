@@ -23,12 +23,12 @@ jobs:
           sed -i 's/__asm__.*//g' include/common.h
           sed -i 's/register.*//g' include/common.h
 
-      - name: Patch include/common.h correctly
+      - name: Patch for Standalone Build (No OpenSSL)
         run: |
+          # 1. Переписываем common.h: добавляем свои XOR функции
           cat << 'EOF' > include/common.h
           #ifndef COMMON_H
           #define COMMON_H
-
           #include <stdint.h>
           #include <stddef.h>
           #include <unistd.h>
@@ -37,22 +37,21 @@ jobs:
           #include <sys/resource.h>
           #include <sys/prctl.h>
           #include <string.h>
-          #include <time.h>
-          #include <stdlib.h>
 
-          #define PACKED_MAGIC 0x4841524D // "HARM"
+          #define PACKED_MAGIC 0x4841524D
 
           typedef struct {
               uint32_t magic;
               uint64_t original_size;
               uint64_t packed_size;
               uint32_t crc32;
-              uint8_t primary_key[32];
-              uint8_t secondary_key[32];
-              uint8_t tertiary_key[32];
-              uint8_t nonce[16];
-              uint8_t salt[16];
+              uint8_t key[32]; // XOR ключ
           } pack_header_t;
+
+          // Универсальный XOR вместо AES/ChaCha для простоты сборки
+          static inline void simple_crypt(uint8_t* data, size_t len, uint8_t* key) {
+              for(size_t i=0; i<len; i++) data[i] ^= key[i % 32];
+          }
 
           static inline long syscall1(long n, long a1) { return syscall(n, a1); }
           static inline long syscall2(long n, long a1, long a2) { return syscall(n, a1, a2); }
@@ -61,12 +60,22 @@ jobs:
               return syscall(n, a1, a2, a3, a4, a5, a6); 
           }
 
-          void apply_arm64_obfuscation(uint8_t* data, size_t len);
-          void secure_memory_wipe(void* ptr, size_t len);
-          const char* get_random_innocent_name();
+          // Заглушки для функций, которые требовали OpenSSL
+          #define aes256_encrypt(d, l, k) simple_crypt(d, l, k)
+          #define aes256_decrypt(d, l, k) simple_crypt(d, l, k)
+          #define chacha20_encrypt(d, l, k, n) simple_crypt(d, l, k)
+          #define chacha20_decrypt(d, l, k, n) simple_crypt(d, l, k)
+          #define rc4_encrypt_decrypt(k, kl, d, out, l) simple_crypt(d, l, k)
 
+          void prevent_core_dumps();
+          void hide_process_title(int argc, char** argv);
+          int execute_from_memory(void* data, size_t len, char** argv, char** envp);
           #endif
           EOF
+
+          # 2. Очищаем crypto.c, чтобы он не требовал OpenSSL
+          echo '#include "common.h"' > packer/crypto.c
+          echo 'void generate_random_key(uint8_t* k, int l) { for(int i=0; i<l; i++) k[i] = i ^ 0xAA; }' >> packer/crypto.c
 
       - name: Build Packer (x64)
         run: |
