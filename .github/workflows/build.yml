@@ -23,6 +23,24 @@ jobs:
           sed -i 's/__asm__.*//g' include/common.h
           sed -i 's/register.*//g' include/common.h
 
+      - name: Patch include/common.h for x86_64 compatibility
+        run: |
+          cat << 'EOF' > include/common.h
+          #ifndef COMMON_H
+          #define COMMON_H
+          #include <unistd.h>
+          #include <sys/syscall.h>
+          #include <stdint.h>
+
+          static inline long syscall1(long n, long a1) { return syscall(n, a1); }
+          static inline long syscall2(long n, long a1, long a2) { return syscall(n, a1, a2); }
+          static inline long syscall3(long n, long a1, long a2, long a3) { return syscall(n, a1, a2, a3); }
+          static inline long syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6) { 
+              return syscall(n, a1, a2, a3, a4, a5, a6); 
+          }
+          #endif
+          EOF
+
       - name: Build Packer (x64)
         run: |
           mkdir -p build
