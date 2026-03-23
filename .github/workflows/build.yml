@@ -25,41 +25,23 @@ jobs:
 
       - name: Ultimate Patch (Fix Conflicts)
         run: |
-          # 1. Полностью очищаем и переписываем crypto.h, чтобы убрать конфликты
+          # 1. Исправляем crypto.h
           cat << 'EOF' > include/crypto.h
           #ifndef CRYPTO_H
           #define CRYPTO_H
           #include <stdint.h>
           #include <stddef.h>
-
-          // Перенаправляем все вызовы на одну простую функцию
           void simple_crypt(void* data, size_t len, const void* key);
-
           #define aes256_encrypt(d, l, k) simple_crypt(d, l, k)
           #define aes256_decrypt(d, l, k) simple_crypt(d, l, k)
           #define chacha20_encrypt(d, l, k, n) simple_crypt(d, l, k)
           #define chacha20_decrypt(d, l, k, n) simple_crypt(d, l, k)
           #define rc4_encrypt_decrypt(k, kl, d, out, l) simple_crypt(d, l, k)
-          
-          void generate_random_key(uint8_t* k, int l);
+          void generate_random_key(uint8_t* key, size_t key_size);
           #endif
           EOF
 
-          # 2. Реализуем эту функцию в crypto.c
-          cat << 'EOF' > packer/crypto.c
-          #include "crypto.h"
-          #include <stdlib.h>
-          void simple_crypt(void* data, size_t len, const void* key) {
-              uint8_t* d = (uint8_t*)data;
-              const uint8_t* k = (const uint8_t*)key;
-              for(size_t i=0; i<len; i++) d[i] ^= k[i % 32];
-          }
-          void generate_random_key(uint8_t* k, int l) {
-              for(int i=0; i<l; i++) k[i] = (uint8_t)(rand() % 256);
-          }
-          EOF
-
-          # 3. Обновляем common.h (убираем оттуда дубликаты crypto)
+          # 2. Исправляем common.h и структуру заголовка (добавляем [32] для ключей)
           cat << 'EOF' > include/common.h
           #ifndef COMMON_H
           #define COMMON_H
@@ -74,9 +56,7 @@ jobs:
           #include <time.h>
           #include <stdlib.h>
           #include "crypto.h"
-
           #define PACKED_MAGIC 0x4841524D
-
           typedef struct {
               uint32_t magic;
               uint64_t original_size;
@@ -88,19 +68,21 @@ jobs:
               uint8_t nonce[16];
               uint8_t salt[16];
           } pack_header_t;
-
           static inline long syscall1(long n, long a1) { return syscall(n, a1); }
           static inline long syscall2(long n, long a1, long a2) { return syscall(n, a1, a2); }
           static inline long syscall3(long n, long a1, long a2, long a3) { return syscall(n, a1, a2, a3); }
           static inline long syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6) { return syscall(n, a1, a2, a3, a4, a5, a6); }
-
           void apply_arm64_obfuscation(uint8_t* data, size_t len);
           void secure_memory_wipe(void* ptr, size_t len);
           const char* get_random_innocent_name(void);
-          void prevent_core_dumps(void);
-          void hide_process_title(int argc, char** argv);
           #endif
           EOF
+
+          # 3. Удаляем конфликтующие функции из оригинальных файлов .c
+          # Удаляем реализацию generate_random_key из packer.c, так как она теперь в crypto.c
+          sed -i '/void generate_random_key/,/}/d' packer/packer.c
+          # Удаляем реализацию multi_layer_encrypt из packer.c, она конфликтует с нашими макросами
+          sed -i '/void multi_layer_encrypt/,/}/d' packer/packer.c
       
       - name: Build Packer (x64)
         run: |
