@@ -23,14 +23,35 @@ jobs:
           sed -i 's/__asm__.*//g' include/common.h
           sed -i 's/register.*//g' include/common.h
 
-      - name: Patch include/common.h for x86_64 compatibility
+      - name: Patch include/common.h correctly
         run: |
           cat << 'EOF' > include/common.h
           #ifndef COMMON_H
           #define COMMON_H
+
+          #include <stdint.h>
+          #include <stddef.h>
           #include <unistd.h>
           #include <sys/syscall.h>
-          #include <stdint.h>
+          #include <sys/mman.h>
+          #include <sys/resource.h>
+          #include <string.h>
+          #include <time.h>
+          #include <stdlib.h>
+
+          #define PACKED_MAGIC 0x4841524D // "HARM"
+
+          typedef struct {
+              uint32_t magic;
+              uint64_t original_size;
+              uint64_t packed_size;
+              uint32_t crc32;
+              uint8_t primary_key[32];
+              uint8_t secondary_key[32];
+              uint8_t tertiary_key[32];
+              uint8_t nonce[16];
+              uint8_t salt[16];
+          } pack_header_t;
 
           static inline long syscall1(long n, long a1) { return syscall(n, a1); }
           static inline long syscall2(long n, long a1, long a2) { return syscall(n, a1, a2); }
@@ -38,6 +59,12 @@ jobs:
           static inline long syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6) { 
               return syscall(n, a1, a2, a3, a4, a5, a6); 
           }
+
+          // Прототипы функций для обфускации, чтобы не было warning-ов
+          void apply_arm64_obfuscation(uint8_t* data, size_t len);
+          void secure_memory_wipe(void* ptr, size_t len);
+          const char* get_random_innocent_name();
+
           #endif
           EOF
 
