@@ -35,6 +35,7 @@ jobs:
           #include <sys/syscall.h>
           #include <sys/mman.h>
           #include <sys/resource.h>
+          #include <sys/prctl.h>
           #include <string.h>
           #include <time.h>
           #include <stdlib.h>
@@ -60,7 +61,6 @@ jobs:
               return syscall(n, a1, a2, a3, a4, a5, a6); 
           }
 
-          // Прототипы функций для обфускации, чтобы не было warning-ов
           void apply_arm64_obfuscation(uint8_t* data, size_t len);
           void secure_memory_wipe(void* ptr, size_t len);
           const char* get_random_innocent_name();
