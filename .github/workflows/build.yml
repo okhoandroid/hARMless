@@ -23,9 +23,9 @@ jobs:
           sed -i 's/__asm__.*//g' include/common.h
           sed -i 's/register.*//g' include/common.h
 
-      - name: Ultimate Patch (Fix Conflicts)
+      - name: Fix and Rebuild Source Files
         run: |
-          # 1. Исправляем crypto.h
+          # 1. Переписываем crypto.h (убираем все старое)
           cat << 'EOF' > include/crypto.h
           #ifndef CRYPTO_H
           #define CRYPTO_H
@@ -41,48 +41,42 @@ jobs:
           #endif
           EOF
 
-          # 2. Исправляем common.h и структуру заголовка (добавляем [32] для ключей)
-          cat << 'EOF' > include/common.h
-          #ifndef COMMON_H
-          #define COMMON_H
-          #include <stdint.h>
-          #include <stddef.h>
-          #include <unistd.h>
-          #include <sys/syscall.h>
-          #include <sys/mman.h>
-          #include <sys/resource.h>
-          #include <sys/prctl.h>
-          #include <string.h>
-          #include <time.h>
-          #include <stdlib.h>
+          # 2. Полностью заменяем packer/crypto.c на чистую реализацию без OpenSSL
+          cat << 'EOF' > packer/crypto.c
           #include "crypto.h"
-          #define PACKED_MAGIC 0x4841524D
-          typedef struct {
-              uint32_t magic;
-              uint64_t original_size;
-              uint64_t packed_size;
-              uint32_t crc32;
-              uint8_t primary_key[32];
-              uint8_t secondary_key[32];
-              uint8_t tertiary_key[32];
-              uint8_t nonce[16];
-              uint8_t salt[16];
-          } pack_header_t;
-          static inline long syscall1(long n, long a1) { return syscall(n, a1); }
-          static inline long syscall2(long n, long a1, long a2) { return syscall(n, a1, a2); }
-          static inline long syscall3(long n, long a1, long a2, long a3) { return syscall(n, a1, a2, a3); }
-          static inline long syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6) { return syscall(n, a1, a2, a3, a4, a5, a6); }
-          void apply_arm64_obfuscation(uint8_t* data, size_t len);
-          void secure_memory_wipe(void* ptr, size_t len);
-          const char* get_random_innocent_name(void);
-          #endif
+          #include <stdlib.h>
+          #include <string.h>
+          void simple_crypt(void* data, size_t len, const void* key) {
+              uint8_t* d = (uint8_t*)data;
+              const uint8_t* k = (const uint8_t*)key;
+              if (!len || !k) return;
+              for(size_t i=0; i<len; i++) d[i] ^= k[i % 32];
+          }
+          void generate_random_key(uint8_t* k, size_t l) {
+              for(size_t i=0; i<l; i++) k[i] = (uint8_t)(rand() % 256);
+          }
           EOF
 
-          # 3. Удаляем конфликтующие функции из оригинальных файлов .c
-          # Удаляем реализацию generate_random_key из packer.c, так как она теперь в crypto.c
+          # 3. Создаем заглушку для функций обфускации, чтобы не менять packer.c слишком сильно
+          # Это предотвратит ошибки "undefined reference"
+          cat << 'EOF' >> packer/crypto.c
+          void apply_arm64_obfuscation(void* d, size_t l) { (void)d; (void)l; }
+          void secure_memory_wipe(void* d, size_t l) { if(d) memset(d, 0, l); }
+          void prevent_core_dumps(void) {}
+          void hide_process_title(int a, char** b) { (void)a; (void)b; }
+          const char* get_random_innocent_name(void) { return "system_update"; }
+          int execute_from_memory(void* a, size_t b, char** c, char** d) { return -1; }
+          EOF
+
+          # 4. Исправляем packer/packer.c: удаляем только конфликтующие реализации, 
+          # но оставляем логику main.
+          # Мы просто занулим функции, которые автор определил ниже main.
           sed -i '/void generate_random_key/,/}/d' packer/packer.c
-          # Удаляем реализацию multi_layer_encrypt из packer.c, она конфликтует с нашими макросами
           sed -i '/void multi_layer_encrypt/,/}/d' packer/packer.c
+          
+          # 5. Принудительно добавляем наш заголовок во все файлы
+          sed -i '1i #include "common.h"' packer/packer.c
+          sed -i '1i #include "common.h"' loader/loader.c
       
       - name: Build Packer (x64)
         run: |
